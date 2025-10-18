@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App de Denúncias Anônimas</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: #fafafa;
+    color: #222;
+    margin: 0;
+    padding: 0;
+  }
+  header {
+    background: #d32f2f;
+    color: white;
+    padding: 16px;
+    text-align: center;
+  }
+  main {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 16px;
+  }
+  section {
+    background: white;
+    padding: 16px;
+    margin-bottom: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  }
+  button {
+    background: #d32f2f;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  button:hover {
+    background: #b71c1c;
+  }
+  textarea {
+    width: 100%;
+    height: 100px;
+    padding: 8px;
+  }
+  h2, h3 {
+    color: #d32f2f;
+  }
+  .status {
+    font-size: 14px;
+    color: #444;
+    margin-top: 8px;
+  }
+  footer {
+    text-align: center;
+    font-size: 13px;
+    color: #666;
+    margin: 20px 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>App de Denúncias Anônimas</h1>
+  <p>SOCORRO por botão, voz ou mensagem</p>
+</header>
+
+<main>
+  <section id="sos">
+    <h2>Botão de SOS</h2>
+    <p>Pressione o botão abaixo para enviar um alerta anônimo com sua localização.</p>
+    <button id="btnSOS">🚨 SOCORRO</button>
+    <div class="status" id="statusSOS">Aguardando...</div>
+    <button id="btnVoz">🎤 Ativar escuta por voz</button>
+    <p class="status">Palavras-chave: <b>socorro, ajuda, emergência</b></p>
+  </section>
+
+  <section id="denuncia">
+    <h2>Denúncia Anônima Manual</h2>
+    <textarea id="textoDenuncia" placeholder="Descreva o que aconteceu (sem se identificar)"></textarea>
+    <button id="btnEnviarDenuncia">Enviar denúncia</button>
+    <div class="status" id="statusDenuncia"></div>
+  </section>
+
+  <section id="infoESI">
+    <h2>O que é ESI?</h2>
+    <p><strong>ESI</strong> significa <em>Educação Sexual Integral</em>. Ela busca promover conhecimento sobre sexualidade, respeito, igualdade e segurança emocional e física, com base em direitos humanos.</p>
+    <details>
+      <summary>Saiba mais</summary>
+      <ul>
+        <li><a href="https://www.unfpa.org" target="_blank">UNFPA – Fundo de População das Nações Unidas</a></li>
+        <li>Pesquise documentos locais sobre políticas de ESI em seu país.</li>
+      </ul>
+    </details>
+  </section>
+
+  <section id="historico">
+    <h2>Histórico Local</h2>
+    <ul id="listaHistorico"></ul>
+    <button id="btnLimpar">Limpar histórico</button>
+  </section>
+</main>
+
+<footer>
+  Protótipo educativo — não coleta dados pessoais. Para uso real, adicione integração segura a um backend.
+</footer>
+
+<script>
+  const btnSOS = document.getElementById('btnSOS');
+  const statusSOS = document.getElementById('statusSOS');
+  const listaHistorico = document.getElementById('listaHistorico');
+  const btnVoz = document.getElementById('btnVoz');
+  const palavrasChave = ['socorro', 'ajuda', 'emergência'];
+  const textoDenuncia = document.getElementById('textoDenuncia');
+  const statusDenuncia = document.getElementById('statusDenuncia');
+
+  function salvarHistorico(item) {
+    const h = JSON.parse(localStorage.getItem('historicoSOS') || '[]');
+    h.unshift(item);
+    localStorage.setItem('historicoSOS', JSON.stringify(h));
+    renderHistorico();
+  }
+
+  function renderHistorico() {
+    const h = JSON.parse(localStorage.getItem('historicoSOS') || '[]');
+    listaHistorico.innerHTML = h.map(i => 
+      `<li>${i.tipo} - ${new Date(i.data).toLocaleString()} ${i.local || ''}</li>`
+    ).join('');
+  }
+
+  async function obterLocalizacao() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject('Geolocalização não suportada');
+      navigator.geolocation.getCurrentPosition(pos => {
+        resolve(`Lat: ${pos.coords.latitude.toFixed(5)}, Lon: ${pos.coords.longitude.toFixed(5)}`);
+      }, err => reject(err.message));
+    });
+  }
+
+  async function enviarSOS(fonte='botão') {
+    statusSOS.textContent = 'Enviando alerta...';
+    try {
+      const local = await obterLocalizacao();
+      const alerta = {
+        tipo: 'SOS',
+        data: new Date().toISOString(),
+        local,
+        fonte
+      };
+      salvarHistorico(alerta);
+      statusSOS.textContent = '✅ Alerta registrado (local).';
+      alert(`ALERTA: ${local}`);
+    } catch(e) {
+      statusSOS.textContent = '⚠️ Não foi possível obter localização.';
+    }
+  }
+
+  btnSOS.onclick = () => enviarSOS('botão');
+
+  // Reconhecimento de voz (Web Speech API)
+  let reconhecimento;
+  if ('webkitSpeechRecognition' in window) {
+    reconhecimento = new webkitSpeechRecognition();
+    reconhecimento.continuous = true;
+    reconhecimento.lang = 'pt-BR';
+    reconhecimento.onresult = (event) => {
+      const texto = Array.from(event.results).map(r => r[0].transcript).join(' ');
+      console.log('Reconhecido:', texto);
+      for (let p of palavrasChave) {
+        if (texto.toLowerCase().includes(p)) {
+          enviarSOS('voz');
+          break;
+        }
+      }
+    };
+  } else {
+    btnVoz.disabled = true;
+    btnVoz.textContent = 'Reconhecimento de voz não suportado';
+  }
+
+  btnVoz.onclick = () => {
+    if (!reconhecimento) return;
+    reconhecimento.start();
+    btnVoz.textContent = '🎤 Escutando... (fale uma palavra-chave)';
+    setTimeout(() => {
+      reconhecimento.stop();
+      btnVoz.textContent = '🎤 Ativar escuta por voz';
+    }, 10000);
+  };
+
+  document.getElementById('btnEnviarDenuncia').onclick = () => {
+    const texto = textoDenuncia.value.trim();
+    if (!texto) {
+      statusDenuncia.textContent = 'Digite algo para enviar.';
+      return;
+    }
+    const item = {tipo:'Denúncia', data:new Date().toISOString(), texto};
+    salvarHistorico(item);
+    textoDenuncia.value = '';
+    statusDenuncia.textContent = '✅ Denúncia registrada (local).';
+  };
+
+  document.getElementById('btnLimpar').onclick = () => {
+    localStorage.removeItem('historicoSOS');
+    renderHistorico();
+  };
+
+  renderHistorico();
+</script>
+</body>
+</html>
